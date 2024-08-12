@@ -1,0 +1,46 @@
+require_relative '../node_modules/react-native/scripts/react_native_pods'
+require_relative '../node_modules/@react-native-community/cli-platform-ios/native_modules'
+$RNFirebaseAsStaticFramework = true
+
+platform :ios, min_ios_version_supported
+deployment_target = '14.0'
+prepare_react_native_project!
+
+# Use frameworks globally as required by Firebase
+use_frameworks!
+
+linkage = ENV['USE_FRAMEWORKS']
+if linkage != nil
+  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+  use_frameworks! :linkage => linkage.to_sym
+end
+
+target 'clipchart4' do
+  config = use_native_modules!
+
+  # Flags change depending on the env values.
+  flags = get_default_flags()
+
+  pod 'Firebase', :modular_headers => true
+  pod 'FirebaseCore', :modular_headers => true
+  pod 'FirebaseFirestore', :modular_headers => true
+  pod 'GoogleUtilities', :modular_headers => true
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    :hermes_enabled => flags[:hermes_enabled],
+    :fabric_enabled => flags[:fabric_enabled],
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  target 'clipchart4Tests' do
+    inherit! :complete
+  end
+
+  post_install do |installer|
+    react_native_post_install(
+      installer,
+      :mac_catalyst_enabled => false
+    )
+  end
+end
