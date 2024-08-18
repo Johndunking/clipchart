@@ -7,7 +7,7 @@ deployment_target = '14.0'
 prepare_react_native_project!
 
 # Use frameworks globally as required by Firebase
-use_frameworks!
+use_frameworks! :linkage => :static
 
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil

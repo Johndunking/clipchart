@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Button, StyleSheet, TextInput, FlatList, TouchableOpacity, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, Alert, Modal } from 'react-native';
 import firestore from '@react-native-firebase/firestore';
 
 const Classes = ({ navigation }) => {
@@ -10,34 +10,62 @@ const Classes = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
 
+  // Load classes from Firestore on component mount
   useEffect(() => {
     const loadClasses = async () => {
-      const classesSnapshot = await firestore().collection('classes').get();
-      const classList = classesSnapshot.docs.map(doc => doc.data());
-      setClasses(classList);
+      try {
+        const classesSnapshot = await firestore().collection('classes').get();
+        const classList = classesSnapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter(c => c.name && c.name.trim() !== ''); // Filter out any blank classes
+        setClasses(classList);
+      } catch (error) {
+        console.error('Error loading classes: ', error);
+      }
     };
 
     loadClasses();
   }, []);
 
+  // Save new class to Firestore
   const saveClass = async (newClass) => {
-    await firestore().collection('classes').doc(newClass.name).set(newClass);
-    setClasses([...classes, newClass]);
+    if (!newClass.name || newClass.name.trim() === '') {
+      return; // Prevent saving a class with an empty name
+    }
+
+    // Check if a class with the same name already exists
+    const existingClass = classes.find(c => c.name.toLowerCase() === newClass.name.trim().toLowerCase());
+    if (existingClass) {
+      Alert.alert('Error', 'A class with this name already exists.');
+      return;
+    }
+
+    try {
+      const classRef = await firestore().collection('classes').add(newClass);
+      setClasses([...classes, { id: classRef.id, ...newClass }]);
+    } catch (error) {
+      console.error('Error saving class: ', error);
+    }
   };
 
-  const deleteClass = async (classNameToDelete) => {
+  // Delete class from Firestore
+  const deleteClass = async (classId) => {
     Alert.alert(
       'Delete Class',
-      `Are you sure you want to delete ${classNameToDelete}?`,
+      `Are you sure you want to delete this class?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
           onPress: async () => {
-            await firestore().collection('classes').doc(classNameToDelete).delete();
-            const updatedClasses = classes.filter(c => c.name !== classNameToDelete);
-            setClasses(updatedClasses);
+            try {
+              await firestore().collection('classes').doc(classId).delete();
+              const updatedClasses = classes.filter(c => c.id !== classId);
+              setClasses(updatedClasses);
+            } catch (error) {
+              console.error('Error deleting class: ', error);
+            }
           },
         },
       ],
@@ -45,21 +73,23 @@ const Classes = ({ navigation }) => {
     );
   };
 
+  // Handle adding a new class
   const addClass = () => {
     if (className.trim() === '') {
       Alert.alert('Error', 'Class name cannot be empty.');
       return;
     }
-    const newClass = { name: className };
+    const newClass = { name: className.trim(), students: [] }; // Initialize with an empty students array
     saveClass(newClass);
     setClassName('');
     setShowAddClassModal(false);
   };
 
+  // Search students across all classes
   const searchStudents = async () => {
     const allStudents = [];
     for (const classItem of classes) {
-      const classDoc = await firestore().collection('classes').doc(classItem.name).get();
+      const classDoc = await firestore().collection('classes').doc(classItem.id).get();
       if (classDoc.exists) {
         const students = classDoc.data().students || [];
         allStudents.push(...students.map(student => ({ ...student, className: classItem.name })));
@@ -73,6 +103,7 @@ const Classes = ({ navigation }) => {
     setSearchResults(filteredResults);
   };
 
+  // Handle search result selection
   const handleSearchResultPress = (className) => {
     setShowSearchModal(false);
     setSearchQuery('');
@@ -90,7 +121,7 @@ const Classes = ({ navigation }) => {
 
       <FlatList
         data={classes}
-        keyExtractor={(item) => item.name}
+        keyExtractor={(item) => item.id} // Ensure unique key
         renderItem={({ item }) => (
           <View style={styles.classItem}>
             <TouchableOpacity
@@ -99,7 +130,7 @@ const Classes = ({ navigation }) => {
             >
               <Text style={styles.classButtonText}>{item.name}</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => deleteClass(item.name)} style={styles.deleteButton}>
+            <TouchableOpacity onPress={() => deleteClass(item.id)} style={styles.deleteButton}>
               <Text style={styles.deleteButtonText}>Delete</Text>
             </TouchableOpacity>
           </View>
@@ -264,10 +295,6 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     alignItems: 'center',
     marginBottom: 10,
-  },
-  searchModalButtonText: {
-    color: 'white',
-    fontSize: 16,
   },
   cancelButton: {
     paddingVertical: 8,

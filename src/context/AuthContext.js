@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
-import firebaseAuth from '@react-native-firebase/auth'; // Renamed here
+import auth from '@react-native-firebase/auth'; // Correct import
 
 export const AuthContext = createContext();
 
@@ -8,7 +8,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = firebaseAuth().onAuthStateChanged((user) => { // Updated here
+    // Setting up the listener for authentication state changes
+    const unsubscribe = auth().onAuthStateChanged((user) => {
       if (user) {
         setUser(user);
       } else {
@@ -17,12 +18,13 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     });
 
-    return unsubscribe;
+    // Cleanup the listener when the component unmounts
+    return () => unsubscribe();
   }, []);
 
   const login = async (email, password, saveCredentials = true) => {
     try {
-      await firebaseAuth().signInWithEmailAndPassword(email, password); // Updated here
+      await auth().signInWithEmailAndPassword(email, password);
       if (saveCredentials) {
         // Optionally save credentials using AsyncStorage if needed
       }
@@ -33,7 +35,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await firebaseAuth().signOut(); // Updated here
+      await auth().signOut();
       setUser(null);
     } catch (error) {
       console.error("Failed to log out", error);
